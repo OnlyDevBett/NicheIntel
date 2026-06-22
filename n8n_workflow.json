@@ -1,0 +1,578 @@
+{
+  "name": "Niche Content Credibility Verification & Summarizer",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "niche-content-scanner",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        250,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "triggerTimes": {
+          "item": [
+            {
+              "mode": "everyHours",
+              "hourInterval": 6
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "schedule-trigger",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [
+        250,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:3000/api/config",
+        "options": {}
+      },
+      "id": "get-config",
+      "name": "Fetch Dashboard Config",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        480,
+        330
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = [];\nconst config = $input.first().json;\nconst sites = config.sites || [];\n\nfor (const url of sites) {\n  items.push({\n    json: {\n      url,\n      niche: config.niche,\n      credibilityRules: config.credibilityRules,\n      deliveryChannels: config.deliveryChannels,\n      searchSettings: config.searchSettings,\n      breakingNewsAlerts: config.breakingNewsAlerts\n    }\n  });\n}\nreturn items;"
+      },
+      "id": "split-sites",
+      "name": "Split into Site Items",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        680,
+        330
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.url }}",
+        "options": {}
+      },
+      "id": "fetch-rss",
+      "name": "Fetch Site Feed",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        880,
+        330
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const xmlString = $input.first().json.data || $input.first().text;\n// Parse simple XML items using regex for maximum compatibility without extra node modules\nconst items = [];\nconst matches = xmlString.matchAll(/<item>([\\s\\S]*?)<\\/item>/g);\nconst limitDate = new Date();\nlimitDate.setHours(limitDate.getHours() - 24); // Last 24 hours\n\nfor (const match of matches) {\n  const content = match[1];\n  const titleMatch = content.match(/<title><!\\[CDATA\\[([\\s\\S]*?)\\]\\]><\\/title>/) || content.match(/<title>([\\s\\S]*?)<\\/title>/);\n  const linkMatch = content.match(/<link><!\\[CDATA\\[([\\s\\S]*?)\\]\\]><\\/link>/) || content.match(/<link>([\\s\\S]*?)<\\/link>/);\n  const descMatch = content.match(/<description><!\\[CDATA\\[([\\s\\S]*?)\\]\\]><\\/description>/) || content.match(/<description>([\\s\\S]*?)<\\/description>/);\n  const pubDateMatch = content.match(/<pubDate>([\\s\\S]*?)<\\/pubDate>/);\n\n  const title = titleMatch ? titleMatch[1].trim() : 'Untitled';\n  const link = linkMatch ? linkMatch[1].trim() : '';\n  const description = descMatch ? descMatch[1].trim().replace(/<[^>]*>/g, '') : '';\n  const pubDateStr = pubDateMatch ? pubDateMatch[1].trim() : '';\n  const pubDate = pubDateStr ? new Date(pubDateStr) : new Date();\n\n  if (pubDate >= limitDate) {\n    items.push({\n      json: {\n        title,\n        link,\n        description,\n        pubDate: pubDate.toISOString(),\n        niche: $node[\"Split into Site Items\"].json.niche,\n        credibilityRules: $node[\"Split into Site Items\"].json.credibilityRules,\n        deliveryChannels: $node[\"Split into Site Items\"].json.deliveryChannels,\n        searchSettings: $node[\"Split into Site Items\"].json.searchSettings,\n        breakingNewsAlerts: $node[\"Split into Site Items\"].json.breakingNewsAlerts,\n        source: new URL($node[\"Split into Site Items\"].json.url).hostname\n      }\n    });\n  }\n}\nreturn items.slice(0, 5); // Limit to top 5 articles per feed to avoid API limits"
+      },
+      "id": "parse-rss",
+      "name": "Parse XML RSS Feed",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1080,
+        330
+      ]
+    },
+    {
+      "parameters": {
+        "query": "=latest news about \"{{ $json.title }}\"",
+        "options": {}
+      },
+      "id": "external-search",
+      "name": "DuckDuckGo External Search",
+      "type": "n8n-nodes-base.duckduckgo",
+      "typeVersion": 1,
+      "position": [
+        1280,
+        330
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const searchResults = $input.all().map((item, idx) => `[${idx+1}] Source: ${item.json.source || 'Search'}\\nTitle: ${item.json.title}\\nSnippet: ${item.json.snippet}`).join('\\n\\n');\nconst originalItem = $node[\"Parse XML RSS Feed\"].json;\n\nreturn {\n  json: {\n    ...originalItem,\n    searchResultsText: searchResults || \"No external references found.\"\n  }\n};"
+      },
+      "id": "collate-references",
+      "name": "Collate References",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1480,
+        330
+      ]
+    },
+    {
+      "parameters": {
+        "model": "gpt-4o-mini",
+        "messages": {
+          "messageValues": [
+            {
+              "role": "system",
+              "message": "You are a professional fact-checker, credible research assistant, and social media copywriter for an X (Twitter) content creator. Your role is to examine primary news against secondary references and formulate clear summaries, ratings, and tweet drafts. ALWAYS output valid JSON matching the requested structure."
+            },
+            {
+              "role": "user",
+              "message": "=Please verify the credibility of the primary news article below and summarize it.\n\nPRIMARY ARTICLE:\nTitle: {{ $json.title }}\nSource: {{ $json.source }}\nURL: {{ $json.link }}\nSnippet: {{ $json.description }}\n\nEXTERNAL SEARCH REFERENCES FOR CROSS-VERIFICATION:\n{{ $json.searchResultsText }}\n\nCREATOR NICHE CONTEXT:\n{{ $json.niche }}\n\nCREDIBILITY RULES TO APPLY:\n{{ $json.credibilityRules }}\n\nEvaluate and return a single JSON object. Ensure it contains EXACTLY these fields:\n{\n  \"credibilityScore\": <integer 1 to 10>,\n  \"credibilityExplanation\": \"<2 sentence analysis of whether the references confirm or refute the primary news>\",\n  \"summary\": \"<punchy 3 sentence summary of the news tailored to the niche>\",\n  \"isBreaking\": <boolean indicating if this is highly urgent, novel or massive breaking news>,\n  \"suggestedTweet\": \"<an engaging tweet/thread-starter for X (under 280 chars) with hooks and hashtags, referencing the news>\"\n}"
+            }
+          ]
+        },
+        "options": {
+          "responseFormat": "json_object"
+        }
+      },
+      "id": "ai-verification",
+      "name": "OpenAI/Gemini Verification Agent",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "position": [
+        1680,
+        330
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const aiResponse = JSON.parse($input.first().json.choices[0].message.content);\nconst originalData = $node[\"Collate References\"].json;\n\nreturn {\n  json: {\n    title: originalData.title,\n    source: originalData.source,\n    link: originalData.link,\n    description: originalData.description,\n    deliveryChannels: originalData.deliveryChannels,\n    breakingNewsAlerts: originalData.breakingNewsAlerts,\n    credibilityScore: aiResponse.credibilityScore,\n    credibilityExplanation: aiResponse.credibilityExplanation,\n    summary: aiResponse.summary,\n    isBreaking: aiResponse.isBreaking,\n    suggestedTweet: aiResponse.suggestedTweet\n  }\n};"
+      },
+      "id": "format-ai-data",
+      "name": "Parse AI JSON Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1880,
+        330
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{ $json.credibilityScore }}",
+              "operation": "largerEqual",
+              "value2": 6
+            }
+          ]
+        }
+      },
+      "id": "filter-credibility",
+      "name": "Filter Credible Content (≥6)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        2080,
+        330
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.deliveryChannels.telegram.enabled }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "check-telegram",
+      "name": "Telegram Enabled?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        2300,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.telegram.org/bot{{ $json.deliveryChannels.telegram.botToken }}/sendMessage",
+        "sendHeaders": true,
+        "headers": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"chat_id\": \"{{ $json.deliveryChannels.telegram.chatId }}\", \"text\": \"🚨 *{{ $json.isBreaking ? 'BREAKING NEWS VERIFIED' : 'NEW NICHES CAN' }}* 🚨\\n\\n*Title:* {{ $json.title }}\\n*Source:* {{ $json.source }}\\n*Credibility Score:* {{ $json.credibilityScore }}/10\\n\\n*Summary:* {{ $json.summary }}\\n\\n*Verification:* {{ $json.credibilityExplanation }}\\n\\n*Suggested Tweet:*\\n{{ $json.suggestedTweet }}\\n\\nRead more: {{ $json.link }}\", \"parse_mode\": \"Markdown\"}",
+        "options": {}
+      },
+      "id": "send-telegram",
+      "name": "Send Telegram Message",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2500,
+        180
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.deliveryChannels.email.enabled }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "check-email",
+      "name": "Email Enabled?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        2300,
+        380
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.deliveryChannels.email.address }}",
+        "subject": "=Verified News Alert: {{ $json.title }} [Score: {{ $json.credibilityScore }}/10]",
+        "message": "=<h3>🚨 Verified News Alert (Niche: {{ $node[\"Split into Site Items\"].json.niche }})</h3><p><strong>Title:</strong> {{ $json.title }}<br/><strong>Source:</strong> {{ $json.source }} | <a href=\"{{ $json.link }}\">Link to Article</a></p><p><strong>Credibility Rating:</strong> {{ $json.credibilityScore }}/10</p><p><strong>Verification Details:</strong> {{ $json.credibilityExplanation }}</p><p><strong>Summary:</strong> {{ $json.summary }}</p><hr/><p><strong>Suggested Post for X:</strong><br/><em>{{ $json.suggestedTweet }}</em></p>",
+        "options": {}
+      },
+      "id": "send-email",
+      "name": "Send Email Node",
+      "type": "n8n-nodes-base.email",
+      "typeVersion": 1,
+      "position": [
+        2500,
+        360
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.deliveryChannels.whatsapp.enabled }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "check-whatsapp",
+      "name": "WhatsApp Enabled?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        2300,
+        560
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.twilio.com/2010-04-01/Accounts/{{ $json.deliveryChannels.whatsapp.twilioSid }}/Messages.json",
+        "authentication": "basicAuth",
+        "username": "={{ $json.deliveryChannels.whatsapp.twilioSid }}",
+        "password": "={{ $json.deliveryChannels.whatsapp.twilioAuthToken }}",
+        "sendBody": true,
+        "specifyBody": "formUrlEncoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "To",
+              "value": "=whatsapp:{{ $json.deliveryChannels.whatsapp.phoneNumber }}"
+            },
+            {
+              "name": "From",
+              "value": "={{ $json.deliveryChannels.whatsapp.twilioFrom }}"
+            },
+            {
+              "name": "Body",
+              "value": "=🚨 VERIFIED NICHE DIGEST 🚨\n\nTitle: {{ $json.title }}\nSource: {{ $json.source }}\nCredibility Score: {{ $json.credibilityScore }}/10\n\nSummary: {{ $json.summary }}\n\nSuggested Tweet:\n{{ $json.suggestedTweet }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "send-whatsapp-twilio",
+      "name": "Send WhatsApp (Twilio)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2500,
+        540
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:3000/api/logs",
+        "sendHeaders": true,
+        "headers": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"title\":\"{{ $json.title }}\",\"source\":\"{{ $json.source }}\",\"credibilityScore\":\"{{ $json.credibilityScore }}\",\"credibilityExplanation\":\"{{ $json.credibilityExplanation }}\",\"summary\":\"{{ $json.summary }}\",\"isBreaking\":{{ $json.isBreaking }},\"suggestedTweet\":\"{{ $json.suggestedTweet }}\"}",
+        "options": {}
+      },
+      "id": "post-dashboard-logs",
+      "name": "Record Log to React Dashboard",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2800,
+        330
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Fetch Dashboard Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Fetch Dashboard Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Dashboard Config": {
+      "main": [
+        [
+          {
+            "node": "Split into Site Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split into Site Items": {
+      "main": [
+        [
+          {
+            "node": "Fetch Site Feed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Site Feed": {
+      "main": [
+        [
+          {
+            "node": "Parse XML RSS Feed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse XML RSS Feed": {
+      "main": [
+        [
+          {
+            "node": "DuckDuckGo External Search",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DuckDuckGo External Search": {
+      "main": [
+        [
+          {
+            "node": "Collate References",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Collate References": {
+      "main": [
+        [
+          {
+            "node": "OpenAI/Gemini Verification Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI/Gemini Verification Agent": {
+      "main": [
+        [
+          {
+            "node": "Parse AI JSON Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse AI JSON Response": {
+      "main": [
+        [
+          {
+            "node": "Filter Credible Content (≥6)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Credible Content (≥6)": {
+      "main": [
+        [
+          {
+            "node": "Telegram Enabled?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Email Enabled?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "WhatsApp Enabled?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram Enabled?": {
+      "main": [
+        [
+          {
+            "node": "Send Telegram Message",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Record Log to React Dashboard",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Telegram Message": {
+      "main": [
+        [
+          {
+            "node": "Record Log to React Dashboard",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email Enabled?": {
+      "main": [
+        [
+          {
+            "node": "Send Email Node",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Record Log to React Dashboard",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Email Node": {
+      "main": [
+        [
+          {
+            "node": "Record Log to React Dashboard",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WhatsApp Enabled?": {
+      "main": [
+        [
+          {
+            "node": "Send WhatsApp (Twilio)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Record Log to React Dashboard",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send WhatsApp (Twilio)": {
+      "main": [
+        [
+          {
+            "node": "Record Log to React Dashboard",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {},
+  "versionId": "1a2b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d",
+  "id": "1",
+  "meta": {
+    "instanceId": "n8n-local-instance"
+  },
+  "tags": []
+}
