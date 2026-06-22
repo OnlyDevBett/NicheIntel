@@ -4,6 +4,8 @@ import fs from 'fs/promises';
 import fsSync from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import sqlite3 from 'sqlite3';
+import { open } from 'sqlite';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -28,8 +30,8 @@ try {
   DATA_DIR = __dirname;
 }
 
-const CONFIG_FILE = path.join(DATA_DIR, 'config.json');
-const LOGS_FILE = path.join(DATA_DIR, 'logs.json');
+const DB_FILE = path.join(DATA_DIR, 'niche.db');
+let db;
 
 // Helper to check if file exists
 async function fileExists(filePath) {
@@ -88,12 +90,12 @@ const DEFAULT_CONFIG = {
 app.get('/api/config', async (req, res) => {
   try {
     let config = DEFAULT_CONFIG;
-    if (await fileExists(CONFIG_FILE)) {
-      const data = await fs.readFile(CONFIG_FILE, 'utf-8');
-      config = JSON.parse(data);
+    const row = await db.get('SELECT data FROM config WHERE id = 1');
+    if (row && row.data) {
+      config = JSON.parse(row.data);
     } else {
-      // Write defaults if not exist
-      await fs.writeFile(CONFIG_FILE, JSON.stringify(DEFAULT_CONFIG, null, 2), 'utf-8');
+      // Save defaults if not exist
+      await db.run('INSERT OR REPLACE INTO config (id, data) VALUES (1, ?)', JSON.stringify(DEFAULT_CONFIG));
     }
 
     // Merge environment variables as overrides/defaults
@@ -127,7 +129,7 @@ function trimStrings(obj) {
 app.post('/api/config', async (req, res) => {
   try {
     const newConfig = trimStrings(req.body);
-    await fs.writeFile(CONFIG_FILE, JSON.stringify(newConfig, null, 2), 'utf-8');
+    await db.run('INSERT OR REPLACE INTO config (id, data) VALUES (1, ?)', JSON.stringify(newConfig));
     return res.json({ success: true, config: newConfig });
   } catch (error) {
     console.error('Error writing config:', error);
@@ -138,11 +140,12 @@ app.post('/api/config', async (req, res) => {
 // API: Get Logs
 app.get('/api/logs', async (req, res) => {
   try {
-    if (await fileExists(LOGS_FILE)) {
-      const data = await fs.readFile(LOGS_FILE, 'utf-8');
-      return res.json(JSON.parse(data));
-    }
-    return res.json([]);
+    const rows = await db.all('SELECT * FROM logs ORDER BY timestamp DESC');
+    const formattedRows = rows.map(row => ({
+      ...row,
+      isBreaking: Boolean(row.isBreaking)
+    }));
+    return res.json(formattedRows);
   } catch (error) {
     console.error('Error reading logs:', error);
     return res.status(500).json({ error: 'Failed to read logs.' });
@@ -152,29 +155,54 @@ app.get('/api/logs', async (req, res) => {
 // API: Write Log
 app.post('/api/logs', async (req, res) => {
   try {
+    const id = Date.now().toString();
+    const timestamp = new Date().toISOString();
+    
+    const {
+      title,
+      source,
+      credibilityScore,
+      credibilityExplanation,
+      summary,
+      isBreaking,
+      suggestedTweet
+    } = req.body;
+
+    await db.run(
+      `INSERT INTO logs (id, timestamp, title, source, credibilityScore, credibilityExplanation, summary, isBreaking, suggestedTweet)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        id,
+        timestamp,
+        title || '',
+        source || '',
+        Number(credibilityScore) || 0,
+        credibilityExplanation || '',
+        summary || '',
+        isBreaking ? 1 : 0,
+        suggestedTweet || ''
+      ]
+    );
+
+    // Limit to last 200 logs by deleting older records
+    await db.run(`
+      DELETE FROM logs WHERE id NOT IN (
+        SELECT id FROM logs ORDER BY timestamp DESC LIMIT 200
+      )
+    `);
+
     const newLog = {
-      id: Date.now().toString(),
-      timestamp: new Date().toISOString(),
-      ...req.body
+      id,
+      timestamp,
+      title,
+      source,
+      credibilityScore,
+      credibilityExplanation,
+      summary,
+      isBreaking: Boolean(isBreaking),
+      suggestedTweet
     };
 
-    let logs = [];
-    if (await fileExists(LOGS_FILE)) {
-      const data = await fs.readFile(LOGS_FILE, 'utf-8');
-      try {
-        logs = JSON.parse(data);
-      } catch {
-        logs = [];
-      }
-    }
-    // Prepend new log (newest first)
-    logs.unshift(newLog);
-    // Limit to last 200 logs
-    if (logs.length > 200) {
-      logs = logs.slice(0, 200);
-    }
-
-    await fs.writeFile(LOGS_FILE, JSON.stringify(logs, null, 2), 'utf-8');
     return res.json({ success: true, log: newLog });
   } catch (error) {
     console.error('Error writing log:', error);
@@ -186,9 +214,9 @@ app.post('/api/logs', async (req, res) => {
 app.post('/api/trigger', async (req, res) => {
   try {
     let config = DEFAULT_CONFIG;
-    if (await fileExists(CONFIG_FILE)) {
-      const data = await fs.readFile(CONFIG_FILE, 'utf-8');
-      config = JSON.parse(data);
+    const row = await db.get('SELECT data FROM config WHERE id = 1');
+    if (row && row.data) {
+      config = JSON.parse(row.data);
     }
 
     // Merge environment variables as overrides/defaults
@@ -247,12 +275,49 @@ app.get('/*splat', async (req, res) => {
   return res.status(404).send('React frontend build assets not found. Run "npm run build" to create them.');
 });
 
+// Initialize database connection and schemas
+async function initDb() {
+  try {
+    db = await open({
+      filename: DB_FILE,
+      driver: sqlite3.Database
+    });
+
+    console.log(`[Database] Connected to SQLite database at: ${DB_FILE}`);
+
+    // Create tables
+    await db.exec(`
+      CREATE TABLE IF NOT EXISTS config (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        data TEXT
+      );
+      
+      CREATE TABLE IF NOT EXISTS logs (
+        id TEXT PRIMARY KEY,
+        timestamp TEXT,
+        title TEXT,
+        source TEXT,
+        credibilityScore INTEGER,
+        credibilityExplanation TEXT,
+        summary TEXT,
+        isBreaking INTEGER,
+        suggestedTweet TEXT
+      );
+    `);
+    console.log('[Database] Schema verified/created successfully.');
+  } catch (err) {
+    console.error('[Database] Initialization error:', err);
+    process.exit(1);
+  }
+}
+
 app.listen(PORT, async () => {
   try {
     await fs.mkdir(DATA_DIR, { recursive: true });
     console.log(`[Backend] Data directory verified/created at: ${DATA_DIR}`);
+    await initDb();
   } catch (err) {
-    console.error(`[Backend] Failed to initialize data directory: ${err.message}`);
+    console.error(`[Backend] Failed to initialize data directory or database: ${err.message}`);
   }
   console.log(`[Backend Server] Running on http://localhost:${PORT}`);
 });

@@ -22,3 +22,11 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Databases
+*.db
+*.sqlite
+niche.db
+
+# Scratch scripts
+scratch/
