@@ -172,32 +172,38 @@ app.post('/api/trigger', async (req, res) => {
       return res.status(400).json({ error: 'n8n Webhook URL is not configured. Please set it in Settings.' });
     }
 
-    // Trigger n8n webhook asynchronously
-    console.log(`Triggering n8n webhook: ${config.n8nWebhookUrl}`);
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 8000); // 8s timeout
+    // Fire-and-forget: immediately respond 202 to the React dashboard so the
+    // UI does not hang. The n8n workflow can take 30-120s to complete (RSS
+    // fetch + DuckDuckGo search + Gemini API) — far beyond any reasonable
+    // HTTP timeout. n8n will call back /api/logs when finished.
+    console.log(`[Trigger] Firing n8n webhook (fire-and-forget): ${config.n8nWebhookUrl}`);
+    res.status(202).json({ success: true, message: 'Workflow triggered. Results will appear in Logs shortly.' });
 
-    const response = await fetch(config.n8nWebhookUrl, {
+    // Kick off the webhook call asynchronously AFTER responding to the client
+    fetch(config.n8nWebhookUrl, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ source: 'react-dashboard-manual-trigger', config }),
-      signal: controller.signal
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ source: 'react-dashboard-manual-trigger', timestamp: new Date().toISOString() }),
+    }).then(async (response) => {
+      if (!response.ok) {
+        const body = await response.text().catch(() => '');
+        console.error(`[Trigger] n8n webhook responded with status ${response.status}: ${body}`);
+      } else {
+        console.log(`[Trigger] n8n webhook acknowledged successfully (status ${response.status})`);
+      }
+    }).catch((err) => {
+      // Log error but do not crash — the workflow may still be running in n8n
+      console.error(`[Trigger] n8n webhook fire-and-forget error (workflow may still be running): ${err.message}`);
     });
 
-    clearTimeout(timeoutId);
-
-    if (!response.ok) {
-      throw new Error(`n8n responded with status ${response.status}`);
-    }
-
-    return res.json({ success: true, message: 'n8n workflow triggered successfully!' });
   } catch (error) {
     console.error('Error triggering n8n:', error);
-    return res.status(500).json({ 
-      error: `Failed to trigger n8n: ${error.message}. Ensure your n8n instance is running and the webhook is active.` 
-    });
+    // Only reached if config reading fails
+    if (!res.headersSent) {
+      return res.status(500).json({
+        error: `Failed to trigger n8n: ${error.message}. Ensure your n8n instance is running and the webhook is active.`
+      });
+    }
   }
 });
 
