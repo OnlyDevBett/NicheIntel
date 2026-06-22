@@ -199,6 +199,12 @@ app.get('/*splat', async (req, res) => {
   return res.status(404).send('React frontend build assets not found. Run "npm run build" to create them.');
 });
 
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
+  try {
+    await fs.mkdir(DATA_DIR, { recursive: true });
+    console.log(`[Backend] Data directory verified/created at: ${DATA_DIR}`);
+  } catch (err) {
+    console.error(`[Backend] Failed to initialize data directory: ${err.message}`);
+  }
   console.log(`[Backend Server] Running on http://localhost:${PORT}`);
 });
