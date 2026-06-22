@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import fs from 'fs/promises';
+import fsSync from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -13,7 +14,20 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
-const DATA_DIR = process.env.DATA_DIR || __dirname;
+let DATA_DIR = process.env.DATA_DIR || __dirname;
+
+try {
+  fsSync.mkdirSync(DATA_DIR, { recursive: true });
+  // Verify write permission by creating a temporary file
+  const testFile = path.join(DATA_DIR, '.write_test');
+  fsSync.writeFileSync(testFile, 'test');
+  fsSync.unlinkSync(testFile);
+  console.log(`[Backend] Storage directory verified at: ${DATA_DIR}`);
+} catch (err) {
+  console.warn(`[Backend] Directory ${DATA_DIR} is read-only or invalid (${err.message}). Falling back to local workspace.`);
+  DATA_DIR = __dirname;
+}
+
 const CONFIG_FILE = path.join(DATA_DIR, 'config.json');
 const LOGS_FILE = path.join(DATA_DIR, 'logs.json');
 
