@@ -40,7 +40,9 @@
     {
       "parameters": {
         "url": "https://nicheintel.onrender.com/api/config",
-        "options": {}
+        "options": {
+          "timeout": 15000
+        }
       },
       "id": "get-config",
       "name": "Fetch Dashboard Config",
@@ -67,7 +69,9 @@
     {
       "parameters": {
         "url": "={{ $json.url }}",
-        "options": {}
+        "options": {
+          "timeout": 15000
+        }
       },
       "id": "fetch-rss",
       "name": "Fetch Site Feed",
@@ -113,7 +117,9 @@
             }
           ]
         },
-        "options": {}
+        "options": {
+          "timeout": 15000
+        }
       },
       "id": "external-search-http",
       "name": "DuckDuckGo HTTP Search",
@@ -158,7 +164,9 @@
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify($json.geminiPayload) }}",
-        "options": {}
+        "options": {
+          "timeout": 15000
+        }
       },
       "id": "ai-verification",
       "name": "Google Gemini API Verification",
@@ -244,7 +252,9 @@
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={\"chat_id\": \"{{ $json.deliveryChannels.telegram.chatId.trim() }}\", \"text\": \"🚨 *{{ $json.isBreaking ? 'BREAKING NEWS VERIFIED' : 'NEW NICHES CAN' }}* 🚨\\n\\n*Title:* {{ $json.title }}\\n*Source:* {{ $json.source }}\\n*Credibility Score:* {{ $json.credibilityScore }}/10\\n\\n*Summary:* {{ $json.summary }}\\n\\n*Verification:* {{ $json.credibilityExplanation }}\\n\\n*Suggested Tweet:*\\n{{ $json.suggestedTweet }}\\n\\nRead more: {{ $json.link }}\", \"parse_mode\": \"Markdown\"}",
-        "options": {}
+        "options": {
+          "timeout": 15000
+        }
       },
       "id": "send-telegram",
       "name": "Send Telegram Message",
@@ -338,7 +348,9 @@
             }
           ]
         },
-        "options": {}
+        "options": {
+          "timeout": 15000
+        }
       },
       "id": "send-whatsapp-twilio",
       "name": "Send WhatsApp (Twilio)",
@@ -365,7 +377,9 @@
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={\"title\":\"{{ $json.title }}\",\"source\":\"{{ $json.source }}\",\"credibilityScore\":\"{{ $json.credibilityScore }}\",\"credibilityExplanation\":\"{{ $json.credibilityExplanation }}\",\"summary\":\"{{ $json.summary }}\",\"isBreaking\":{{ $json.isBreaking }},\"suggestedTweet\":\"{{ $json.suggestedTweet }}\"}",
-        "options": {}
+        "options": {
+          "timeout": 15000
+        }
       },
       "id": "post-dashboard-logs",
       "name": "Record Log to React Dashboard",
