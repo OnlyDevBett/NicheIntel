@@ -87,13 +87,21 @@ const DEFAULT_CONFIG = {
 // API: Get Config
 app.get('/api/config', async (req, res) => {
   try {
+    let config = DEFAULT_CONFIG;
     if (await fileExists(CONFIG_FILE)) {
       const data = await fs.readFile(CONFIG_FILE, 'utf-8');
-      return res.json(JSON.parse(data));
+      config = JSON.parse(data);
+    } else {
+      // Write defaults if not exist
+      await fs.writeFile(CONFIG_FILE, JSON.stringify(DEFAULT_CONFIG, null, 2), 'utf-8');
     }
-    // Write defaults if not exist
-    await fs.writeFile(CONFIG_FILE, JSON.stringify(DEFAULT_CONFIG, null, 2), 'utf-8');
-    return res.json(DEFAULT_CONFIG);
+
+    // Merge environment variables as overrides/defaults
+    if (process.env.N8N_WEBHOOK_URL) config.n8nWebhookUrl = process.env.N8N_WEBHOOK_URL;
+    if (process.env.NICHE) config.niche = process.env.NICHE;
+    if (process.env.CREDIBILITY_RULES) config.credibilityRules = process.env.CREDIBILITY_RULES;
+
+    return res.json(config);
   } catch (error) {
     console.error('Error reading config:', error);
     return res.status(500).json({ error: 'Failed to read configuration.' });
@@ -167,6 +175,11 @@ app.post('/api/trigger', async (req, res) => {
       const data = await fs.readFile(CONFIG_FILE, 'utf-8');
       config = JSON.parse(data);
     }
+
+    // Merge environment variables as overrides/defaults
+    if (process.env.N8N_WEBHOOK_URL) config.n8nWebhookUrl = process.env.N8N_WEBHOOK_URL;
+    if (process.env.NICHE) config.niche = process.env.NICHE;
+    if (process.env.CREDIBILITY_RULES) config.credibilityRules = process.env.CREDIBILITY_RULES;
 
     if (!config.n8nWebhookUrl) {
       return res.status(400).json({ error: 'n8n Webhook URL is not configured. Please set it in Settings.' });
