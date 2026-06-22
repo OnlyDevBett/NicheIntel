@@ -97,9 +97,9 @@ app.get('/api/config', async (req, res) => {
     }
 
     // Merge environment variables as overrides/defaults
-    if (process.env.N8N_WEBHOOK_URL) config.n8nWebhookUrl = process.env.N8N_WEBHOOK_URL;
-    if (process.env.NICHE) config.niche = process.env.NICHE;
-    if (process.env.CREDIBILITY_RULES) config.credibilityRules = process.env.CREDIBILITY_RULES;
+    if (process.env.N8N_WEBHOOK_URL) config.n8nWebhookUrl = process.env.N8N_WEBHOOK_URL.trim();
+    if (process.env.NICHE) config.niche = process.env.NICHE.trim();
+    if (process.env.CREDIBILITY_RULES) config.credibilityRules = process.env.CREDIBILITY_RULES.trim();
 
     return res.json(config);
   } catch (error) {
@@ -108,10 +108,25 @@ app.get('/api/config', async (req, res) => {
   }
 });
 
+// Helper to recursively trim string values in an object
+function trimStrings(obj) {
+  if (obj === null || obj === undefined) return obj;
+  if (typeof obj === 'string') return obj.trim();
+  if (Array.isArray(obj)) return obj.map(trimStrings);
+  if (typeof obj === 'object') {
+    const trimmed = {};
+    for (const key in obj) {
+      trimmed[key] = trimStrings(obj[key]);
+    }
+    return trimmed;
+  }
+  return obj;
+}
+
 // API: Save Config
 app.post('/api/config', async (req, res) => {
   try {
-    const newConfig = req.body;
+    const newConfig = trimStrings(req.body);
     await fs.writeFile(CONFIG_FILE, JSON.stringify(newConfig, null, 2), 'utf-8');
     return res.json({ success: true, config: newConfig });
   } catch (error) {
@@ -177,9 +192,9 @@ app.post('/api/trigger', async (req, res) => {
     }
 
     // Merge environment variables as overrides/defaults
-    if (process.env.N8N_WEBHOOK_URL) config.n8nWebhookUrl = process.env.N8N_WEBHOOK_URL;
-    if (process.env.NICHE) config.niche = process.env.NICHE;
-    if (process.env.CREDIBILITY_RULES) config.credibilityRules = process.env.CREDIBILITY_RULES;
+    if (process.env.N8N_WEBHOOK_URL) config.n8nWebhookUrl = process.env.N8N_WEBHOOK_URL.trim();
+    if (process.env.NICHE) config.niche = process.env.NICHE.trim();
+    if (process.env.CREDIBILITY_RULES) config.credibilityRules = process.env.CREDIBILITY_RULES.trim();
 
     if (!config.n8nWebhookUrl) {
       return res.status(400).json({ error: 'n8n Webhook URL is not configured. Please set it in Settings.' });

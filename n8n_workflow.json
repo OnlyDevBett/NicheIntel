@@ -231,7 +231,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "=https://api.telegram.org/bot{{ $json.deliveryChannels.telegram.botToken }}/sendMessage",
+        "url": "=https://api.telegram.org/bot{{ $json.deliveryChannels.telegram.botToken.trim() }}/sendMessage",
         "sendHeaders": true,
         "headers": {
           "parameters": [
@@ -243,7 +243,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\"chat_id\": \"{{ $json.deliveryChannels.telegram.chatId }}\", \"text\": \"🚨 *{{ $json.isBreaking ? 'BREAKING NEWS VERIFIED' : 'NEW NICHES CAN' }}* 🚨\\n\\n*Title:* {{ $json.title }}\\n*Source:* {{ $json.source }}\\n*Credibility Score:* {{ $json.credibilityScore }}/10\\n\\n*Summary:* {{ $json.summary }}\\n\\n*Verification:* {{ $json.credibilityExplanation }}\\n\\n*Suggested Tweet:*\\n{{ $json.suggestedTweet }}\\n\\nRead more: {{ $json.link }}\", \"parse_mode\": \"Markdown\"}",
+        "jsonBody": "={\"chat_id\": \"{{ $json.deliveryChannels.telegram.chatId.trim() }}\", \"text\": \"🚨 *{{ $json.isBreaking ? 'BREAKING NEWS VERIFIED' : 'NEW NICHES CAN' }}* 🚨\\n\\n*Title:* {{ $json.title }}\\n*Source:* {{ $json.source }}\\n*Credibility Score:* {{ $json.credibilityScore }}/10\\n\\n*Summary:* {{ $json.summary }}\\n\\n*Verification:* {{ $json.credibilityExplanation }}\\n\\n*Suggested Tweet:*\\n{{ $json.suggestedTweet }}\\n\\nRead more: {{ $json.link }}\", \"parse_mode\": \"Markdown\"}",
         "options": {}
       },
       "id": "send-telegram",
@@ -277,8 +277,8 @@
     },
     {
       "parameters": {
-        "fromEmail": "={{ $json.deliveryChannels.email.smtpUser }}",
-        "toEmail": "={{ $json.deliveryChannels.email.address }}",
+        "fromEmail": "={{ $json.deliveryChannels.email.smtpUser.trim() }}",
+        "toEmail": "={{ $json.deliveryChannels.email.address.trim() }}",
         "emailFormat": "html",
         "subject": "=Verified News Alert: {{ $json.title }} [Score: {{ $json.credibilityScore }}/10]",
         "html": "=<h3>🚨 Verified News Alert (Niche: {{ $node[\"Split into Site Items\"].json.niche }})</h3><p><strong>Title:</strong> {{ $json.title }}<br/><strong>Source:</strong> {{ $json.source }} | <a href=\"{{ $json.link }}\">Link to Article</a></p><p><strong>Credibility Rating:</strong> {{ $json.credibilityScore }}/10</p><p><strong>Verification Details:</strong> {{ $json.credibilityExplanation }}</p><p><strong>Summary:</strong> {{ $json.summary }}</p><hr/><p><strong>Suggested Post for X:</strong><br/><em>{{ $json.suggestedTweet }}</em></p>",
@@ -316,21 +316,21 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "=https://api.twilio.com/2010-04-01/Accounts/{{ $json.deliveryChannels.whatsapp.twilioSid }}/Messages.json",
+        "url": "=https://api.twilio.com/2010-04-01/Accounts/{{ $json.deliveryChannels.whatsapp.twilioSid.trim() }}/Messages.json",
         "authentication": "basicAuth",
-        "username": "={{ $json.deliveryChannels.whatsapp.twilioSid }}",
-        "password": "={{ $json.deliveryChannels.whatsapp.twilioAuthToken }}",
+        "username": "={{ $json.deliveryChannels.whatsapp.twilioSid.trim() }}",
+        "password": "={{ $json.deliveryChannels.whatsapp.twilioAuthToken.trim() }}",
         "sendBody": true,
         "specifyBody": "formUrlEncoded",
         "bodyParameters": {
           "parameters": [
             {
               "name": "To",
-              "value": "=whatsapp:{{ $json.deliveryChannels.whatsapp.phoneNumber }}"
+              "value": "=whatsapp:{{ $json.deliveryChannels.whatsapp.phoneNumber.trim() }}"
             },
             {
               "name": "From",
-              "value": "={{ $json.deliveryChannels.whatsapp.twilioFrom }}"
+              "value": "={{ $json.deliveryChannels.whatsapp.twilioFrom.trim() }}"
             },
             {
               "name": "Body",
