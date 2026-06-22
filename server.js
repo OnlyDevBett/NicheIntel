@@ -192,7 +192,7 @@ const distPath = path.join(__dirname, 'dist');
 app.use(express.static(distPath));
 
 // Fallback all other routes to index.html for SPA router
-app.get('*', async (req, res) => {
+app.get('/*splat', async (req, res) => {
   if (await fileExists(path.join(distPath, 'index.html'))) {
     return res.sendFile(path.join(distPath, 'index.html'));
   }
