@@ -93,13 +93,31 @@
     },
     {
       "parameters": {
-        "query": "=latest news about \"{{ $json.title }}\"",
+        "url": "=https://html.duckduckgo.com/html/",
+        "sendHeaders": true,
+        "headers": {
+          "parameters": [
+            {
+              "name": "User-Agent",
+              "value": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            }
+          ]
+        },
+        "sendQueryParameters": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "q",
+              "value": "=latest news about \"{{ $json.title }}\""
+            }
+          ]
+        },
         "options": {}
       },
-      "id": "external-search",
-      "name": "DuckDuckGo External Search",
-      "type": "n8n-nodes-base.duckduckgo",
-      "typeVersion": 1,
+      "id": "external-search-http",
+      "name": "DuckDuckGo HTTP Search",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
       "position": [
         1280,
         330
@@ -107,7 +125,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const searchResults = $input.all().map((item, idx) => `[${idx+1}] Source: ${item.json.source || 'Search'}\\nTitle: ${item.json.title}\\nSnippet: ${item.json.snippet}`).join('\\n\\n');\nconst originalItem = $node[\"Parse XML RSS Feed\"].json;\n\nreturn {\n  json: {\n    ...originalItem,\n    searchResultsText: searchResults || \"No external references found.\"\n  }\n};"
+        "jsCode": "const html = $input.first().json.data || $input.first().text || \"\";\nconst matches = [];\n\n// Regex to extract search results from DuckDuckGo HTML\nconst resultRegex = /<div class=\"result[^\"]*\">([\\s\\S]*?)<\\/div>/g;\nconst resultMatches = html.matchAll(resultRegex);\n\nfor (const match of resultMatches) {\n  const block = match[1];\n  const titleMatch = block.match(/<a class=\"result__url\"[^>]*>([\\s\\S]*?)<\\/a>/);\n  const snippetMatch = block.match(/<a class=\"result__snippet\"[^>]*>([\\s\\S]*?)<\\/a>/);\n  \n  if (titleMatch && snippetMatch) {\n    matches.push({\n      title: titleMatch[1].replace(/<[^>]*>/g, '').trim(),\n      snippet: snippetMatch[1].replace(/<[^>]*>/g, '').trim()\n    });\n  }\n}\n\nconst searchResults = matches.slice(0, 3).map((item, idx) => `[${idx+1}] Title: ${item.title}\\nSnippet: ${item.snippet}`).join('\\n\\n');\nconst originalItem = $node[\"Parse XML RSS Feed\"].json;\n\nreturn {\n  json: {\n    ...originalItem,\n    searchResultsText: searchResults || \"No external references found.\"\n  }\n};"
       },
       "id": "collate-references",
       "name": "Collate References",
@@ -407,14 +425,14 @@
       "main": [
         [
           {
-            "node": "DuckDuckGo External Search",
+            "node": "DuckDuckGo HTTP Search",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "DuckDuckGo External Search": {
+    "DuckDuckGo HTTP Search": {
       "main": [
         [
           {
