@@ -39,7 +39,7 @@
     },
     {
       "parameters": {
-        "url": "http://localhost:3000/api/config",
+        "url": "https://nicheintel.onrender.com/api/config",
         "options": {}
       },
       "id": "get-config",
@@ -322,7 +322,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "http://localhost:3000/api/logs",
+        "url": "https://nicheintel.onrender.com/api/logs",
         "sendHeaders": true,
         "headers": {
           "parameters": [
