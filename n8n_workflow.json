@@ -251,7 +251,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\"chat_id\": \"{{ $json.deliveryChannels.telegram.chatId.trim() }}\", \"text\": \"🚨 *{{ $json.isBreaking ? 'BREAKING NEWS VERIFIED' : 'NEW NICHES CAN' }}* 🚨\\n\\n*Title:* {{ $json.title }}\\n*Source:* {{ $json.source }}\\n*Credibility Score:* {{ $json.credibilityScore }}/10\\n\\n*Summary:* {{ $json.summary }}\\n\\n*Verification:* {{ $json.credibilityExplanation }}\\n\\n*Suggested Tweet:*\\n{{ $json.suggestedTweet }}\\n\\nRead more: {{ $json.link }}\", \"parse_mode\": \"Markdown\"}",
+        "jsonBody": "={{ { chat_id: $json.deliveryChannels.telegram.chatId.trim(), text: \"🚨 *\" + ($json.isBreaking ? 'BREAKING NEWS VERIFIED' : 'NEW NICHES CAN') + \"* 🚨\\n\\n*Title:* \" + $json.title + \"\\n*Source:* \" + $json.source + \"\\n*Credibility Score:* \" + $json.credibilityScore + \"/10\\n\\n*Summary:* \" + $json.summary + \"\\n\\n*Verification:* \" + $json.credibilityExplanation + \"\\n\\n*Suggested Tweet:*\\n\" + $json.suggestedTweet + \"\\n\\nRead more: \" + $json.link, parse_mode: \"Markdown\" } }}",
         "options": {
           "timeout": 15000
         }
@@ -376,7 +376,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\"title\":\"{{ $json.title }}\",\"source\":\"{{ $json.source }}\",\"credibilityScore\":\"{{ $json.credibilityScore }}\",\"credibilityExplanation\":\"{{ $json.credibilityExplanation }}\",\"summary\":\"{{ $json.summary }}\",\"isBreaking\":{{ $json.isBreaking }},\"suggestedTweet\":\"{{ $json.suggestedTweet }}\"}",
+        "jsonBody": "={{ { title: $json.title, source: $json.source, credibilityScore: $json.credibilityScore, credibilityExplanation: $json.credibilityExplanation, summary: $json.summary, isBreaking: $json.isBreaking, suggestedTweet: $json.suggestedTweet } }}",
         "options": {
           "timeout": 15000
         }
