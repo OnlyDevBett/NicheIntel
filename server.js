@@ -46,8 +46,8 @@ const DEFAULT_CONFIG = {
   niche: "Artificial Intelligence & LLMs",
   sites: [
     "https://techcrunch.com/feed/",
-    "https://venturebeat.com/feed/",
-    "https://wired.com/feed/rss"
+    "https://venturebeat.com/feed",
+    "https://www.wired.com/feed/rss"
   ],
   credibilityRules: "Verify facts against major publications. Ignore clickbait, rumors, and uncorroborated single-source social media posts. Require at least two separate mainstream or tech-focused outlets covering the event for high credibility.",
   deliveryChannels: {
