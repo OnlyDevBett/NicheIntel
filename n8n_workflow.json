@@ -138,27 +138,26 @@
     },
     {
       "parameters": {
-        "model": "gpt-4o-mini",
-        "messages": {
-          "messageValues": [
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=YOUR_GEMINI_API_KEY",
+        "sendHeaders": true,
+        "headers": {
+          "parameters": [
             {
-              "role": "system",
-              "message": "You are a professional fact-checker, credible research assistant, and social media copywriter for an X (Twitter) content creator. Your role is to examine primary news against secondary references and formulate clear summaries, ratings, and tweet drafts. ALWAYS output valid JSON matching the requested structure."
-            },
-            {
-              "role": "user",
-              "message": "=Please verify the credibility of the primary news article below and summarize it.\n\nPRIMARY ARTICLE:\nTitle: {{ $json.title }}\nSource: {{ $json.source }}\nURL: {{ $json.link }}\nSnippet: {{ $json.description }}\n\nEXTERNAL SEARCH REFERENCES FOR CROSS-VERIFICATION:\n{{ $json.searchResultsText }}\n\nCREATOR NICHE CONTEXT:\n{{ $json.niche }}\n\nCREDIBILITY RULES TO APPLY:\n{{ $json.credibilityRules }}\n\nEvaluate and return a single JSON object. Ensure it contains EXACTLY these fields:\n{\n  \"credibilityScore\": <integer 1 to 10>,\n  \"credibilityExplanation\": \"<2 sentence analysis of whether the references confirm or refute the primary news>\",\n  \"summary\": \"<punchy 3 sentence summary of the news tailored to the niche>\",\n  \"isBreaking\": <boolean indicating if this is highly urgent, novel or massive breaking news>,\n  \"suggestedTweet\": \"<an engaging tweet/thread-starter for X (under 280 chars) with hooks and hashtags, referencing the news>\"\n}"
+              "name": "Content-Type",
+              "value": "application/json"
             }
           ]
         },
-        "options": {
-          "responseFormat": "json_object"
-        }
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"contents\": [\n    {\n      \"role\": \"user\",\n      \"parts\": [\n        {\n          \"text\": \"Please verify the credibility of the primary news article below and summarize it.\\n\\nPRIMARY ARTICLE:\\nTitle: {{ $json.title }}\\nSource: {{ $json.source }}\\nURL: {{ $json.link }}\\nSnippet: {{ $json.description }}\\n\\nEXTERNAL SEARCH REFERENCES FOR CROSS-VERIFICATION:\\n{{ $json.searchResultsText }}\\n\\nCREATOR NICHE CONTEXT:\\n{{ $json.niche }}\\n\\nCREDIBILITY RULES TO APPLY:\\n{{ $json.credibilityRules }}\\n\\nEvaluate and return a single JSON object. Ensure it contains EXACTLY these fields:\\n{\\n  \\\"credibilityScore\\\": <integer 1 to 10>,\\n  \\\"credibilityExplanation\\\": \\\"<2 sentence analysis of whether the references confirm or refute the primary news>\\\",\\n  \\\"summary\\\": \\\"<punchy 3 sentence summary of the news tailored to the niche>\\\",\\n  \\\"isBreaking\\\": <boolean indicating if this is highly urgent, novel or massive breaking news>,\\n  \\\"suggestedTweet\\\": \\\"<an engaging tweet/thread-starter for X (under 280 chars) with hooks and hashtags, referencing the news>\\\"\\n}\"\n        }\n      ]\n    }\n  ],\n  \"systemInstruction\": {\n    \"parts\": [\n      {\n        \"text\": \"You are a professional fact-checker, credible research assistant, and social media copywriter for an X (Twitter) content creator. Your role is to examine primary news against secondary references and formulate clear summaries, ratings, and tweet drafts. ALWAYS output valid JSON matching the requested structure.\"\n      }\n    ]\n  },\n  \"generationConfig\": {\n    \"responseMimeType\": \"application/json\"\n  }\n}",
+        "options": {}
       },
       "id": "ai-verification",
-      "name": "OpenAI/Gemini Verification Agent",
-      "type": "n8n-nodes-base.openAi",
-      "typeVersion": 1,
+      "name": "Google Gemini API Verification",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
       "position": [
         1680,
         330
@@ -171,7 +170,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const aiResponse = JSON.parse($input.first().json.choices[0].message.content);\nconst originalData = $node[\"Collate References\"].json;\n\nreturn {\n  json: {\n    title: originalData.title,\n    source: originalData.source,\n    link: originalData.link,\n    description: originalData.description,\n    deliveryChannels: originalData.deliveryChannels,\n    breakingNewsAlerts: originalData.breakingNewsAlerts,\n    credibilityScore: aiResponse.credibilityScore,\n    credibilityExplanation: aiResponse.credibilityExplanation,\n    summary: aiResponse.summary,\n    isBreaking: aiResponse.isBreaking,\n    suggestedTweet: aiResponse.suggestedTweet\n  }\n};"
+        "jsCode": "const aiResponse = JSON.parse($input.first().json.candidates[0].content.parts[0].text);\nconst originalData = $node[\"Collate References\"].json;\n\nreturn {\n  json: {\n    title: originalData.title,\n    source: originalData.source,\n    link: originalData.link,\n    description: originalData.description,\n    deliveryChannels: originalData.deliveryChannels,\n    breakingNewsAlerts: originalData.breakingNewsAlerts,\n    credibilityScore: aiResponse.credibilityScore,\n    credibilityExplanation: aiResponse.credibilityExplanation,\n    summary: aiResponse.summary,\n    isBreaking: aiResponse.isBreaking,\n    suggestedTweet: aiResponse.suggestedTweet\n  }\n};"
       },
       "id": "format-ai-data",
       "name": "Parse AI JSON Response",
@@ -454,14 +453,14 @@
       "main": [
         [
           {
-            "node": "OpenAI/Gemini Verification Agent",
+            "node": "Google Gemini API Verification",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "OpenAI/Gemini Verification Agent": {
+    "Google Gemini API Verification": {
       "main": [
         [
           {
