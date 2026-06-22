@@ -76,7 +76,8 @@
       "position": [
         880,
         330
-      ]
+      ],
+      "onError": "continueRegularInfo"
     },
     {
       "parameters": {
@@ -121,7 +122,8 @@
       "position": [
         1280,
         330
-      ]
+      ],
+      "onError": "continueRegularInfo"
     },
     {
       "parameters": {
