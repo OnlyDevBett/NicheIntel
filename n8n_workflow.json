@@ -267,9 +267,11 @@
     },
     {
       "parameters": {
-        "sendTo": "={{ $json.deliveryChannels.email.address }}",
+        "fromEmail": "={{ $json.deliveryChannels.email.smtpUser }}",
+        "toEmail": "={{ $json.deliveryChannels.email.address }}",
+        "emailFormat": "html",
         "subject": "=Verified News Alert: {{ $json.title }} [Score: {{ $json.credibilityScore }}/10]",
-        "message": "=<h3>🚨 Verified News Alert (Niche: {{ $node[\"Split into Site Items\"].json.niche }})</h3><p><strong>Title:</strong> {{ $json.title }}<br/><strong>Source:</strong> {{ $json.source }} | <a href=\"{{ $json.link }}\">Link to Article</a></p><p><strong>Credibility Rating:</strong> {{ $json.credibilityScore }}/10</p><p><strong>Verification Details:</strong> {{ $json.credibilityExplanation }}</p><p><strong>Summary:</strong> {{ $json.summary }}</p><hr/><p><strong>Suggested Post for X:</strong><br/><em>{{ $json.suggestedTweet }}</em></p>",
+        "html": "=<h3>🚨 Verified News Alert (Niche: {{ $node[\"Split into Site Items\"].json.niche }})</h3><p><strong>Title:</strong> {{ $json.title }}<br/><strong>Source:</strong> {{ $json.source }} | <a href=\"{{ $json.link }}\">Link to Article</a></p><p><strong>Credibility Rating:</strong> {{ $json.credibilityScore }}/10</p><p><strong>Verification Details:</strong> {{ $json.credibilityExplanation }}</p><p><strong>Summary:</strong> {{ $json.summary }}</p><hr/><p><strong>Suggested Post for X:</strong><br/><em>{{ $json.suggestedTweet }}</em></p>",
         "options": {}
       },
       "id": "send-email",
